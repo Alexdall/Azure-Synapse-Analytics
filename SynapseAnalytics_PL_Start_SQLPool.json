@@ -157,7 +157,7 @@
             },
             "SubscriptionId": {
                 "type": "string",
-                "defaultValue": "f953c81c-e883-404c-8da4-b7eeefa14c75"
+                "defaultValue": "f953c81c-YYYY-404c-XXXX-b7eeefa14c75"
             },
             "SynapseDedicatedSQLPoolDB": {
                 "type": "string",
@@ -165,7 +165,7 @@
             }
         },
         "folder": {
-            "name": "Orquestrador-ccr/9 - Testes"
+            "name": "Orquestrador - Testes"
         },
         "annotations": []
     }
