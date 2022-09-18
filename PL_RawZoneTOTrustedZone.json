@@ -1,0 +1,423 @@
+{
+    "name": "PL_RawZoneTOTrustedZone",
+    "properties": {
+        "activities": [
+            {
+                "name": "Set CurrentDate",
+                "type": "SetVariable",
+                "dependsOn": [],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "currentdate",
+                    "value": {
+                        "value": "@formatDatetime(convertFromUtc(utcnow(),'E. South America Standard Time') ,'yyyy-MM-dd HH:mm:ss.fff')",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Set Timestamp",
+                "type": "SetVariable",
+                "dependsOn": [
+                    {
+                        "activity": "Set CurrentDate",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "variableName": "timestamp",
+                    "value": {
+                        "value": "@replace(replace(replace(replace(variables('currentdate'),'-',''),' ',''),':',''),'.','')",
+                        "type": "Expression"
+                    }
+                }
+            },
+            {
+                "name": "Get All Tables Merge",
+                "type": "Lookup",
+                "dependsOn": [
+                    {
+                        "activity": "Set Timestamp",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "7.00:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "AzureTableSource",
+                        "azureTableSourceQuery": {
+                            "value": "Zone eq 'trusted' and JobStatus eq '1' and Container eq 'rodovias' and System eq 'tor'",
+                            "type": "Expression"
+                        },
+                        "azureTableSourceIgnoreTableNotFound": false
+                    },
+                    "dataset": {
+                        "referenceName": "DS_AzureTable_Generic",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "TableName": "LoadingControl"
+                        }
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "For Each Tables Merge",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Get All Tables Merge",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Get All Tables Merge').output.value",
+                        "type": "Expression"
+                    },
+                    "batchCount": 5,
+                    "activities": [
+                        {
+                            "name": "Set CurrentDate ForEach Incremental",
+                            "type": "SetVariable",
+                            "dependsOn": [
+                                {
+                                    "activity": "Get Database Parameters",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "variableName": "currentdate",
+                                "value": {
+                                    "value": "@formatDatetime(convertFromUtc(utcnow(),'E. South America Standard Time'),'yyyy-MM-dd HH:mm:ss.fff')",
+                                    "type": "Expression"
+                                }
+                            }
+                        },
+                        {
+                            "name": "Update LoadingControl Success",
+                            "type": "Copy",
+                            "dependsOn": [
+                                {
+                                    "activity": "Raw Zone to Trusted Zone",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 3,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SqlDWSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@concat('SELECT CONVERT(VARCHAR(10), GETDATE(), 120) AS UpdatedDate, ', item().PartitionKey , ' AS PartitionKey, ', item().RowKey , ' AS RowKey ', ', 1 AS JobExecution')",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "sink": {
+                                    "type": "AzureTableSink",
+                                    "azureTableInsertType": "merge",
+                                    "azureTablePartitionKeyName": {
+                                        "value": "PartitionKey",
+                                        "type": "Expression"
+                                    },
+                                    "azureTableRowKeyName": {
+                                        "value": "RowKey",
+                                        "type": "Expression"
+                                    },
+                                    "writeBatchSize": 10000
+                                },
+                                "enableStaging": false
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "DS_AzureSynapseAnalytics_Generic",
+                                    "type": "DatasetReference"
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "DS_AzureTable_Generic",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "TableName": "LoadingControl"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Update LoadingControl Fail",
+                            "type": "Copy",
+                            "dependsOn": [
+                                {
+                                    "activity": "Raw Zone to Trusted Zone",
+                                    "dependencyConditions": [
+                                        "Failed"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 3,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "SqlDWSource",
+                                    "sqlReaderQuery": {
+                                        "value": "@concat('SELECT CONVERT(VARCHAR(10), GETDATE(), 120) AS UpdatedDate, ', item().PartitionKey , ' AS PartitionKey, ', item().RowKey , ' AS RowKey ', ', 0 AS JobExecution')",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "sink": {
+                                    "type": "AzureTableSink",
+                                    "azureTableInsertType": "merge",
+                                    "azureTablePartitionKeyName": {
+                                        "value": "PartitionKey",
+                                        "type": "Expression"
+                                    },
+                                    "azureTableRowKeyName": {
+                                        "value": "RowKey",
+                                        "type": "Expression"
+                                    },
+                                    "writeBatchSize": 10000
+                                },
+                                "enableStaging": false
+                            },
+                            "inputs": [
+                                {
+                                    "referenceName": "DS_AzureSynapseAnalytics_Generic",
+                                    "type": "DatasetReference"
+                                }
+                            ],
+                            "outputs": [
+                                {
+                                    "referenceName": "DS_AzureTable_Generic",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "TableName": "LoadingControl"
+                                    }
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Raw Zone to Trusted Zone",
+                            "type": "SynapseNotebook",
+                            "dependsOn": [
+                                {
+                                    "activity": "Set CurrentDate ForEach Incremental",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "notebook": {
+                                    "referenceName": "Trusted",
+                                    "type": "NotebookReference"
+                                },
+                                "parameters": {
+                                    "Container": {
+                                        "value": {
+                                            "value": "@item().Container",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "Zone": {
+                                        "value": {
+                                            "value": "@item().Zone",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "highway": {
+                                        "value": {
+                                            "value": "@item().highway",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "System": {
+                                        "value": {
+                                            "value": "@item().System",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "SchemaName": {
+                                        "value": {
+                                            "value": "@item().SchemaName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "TableName": {
+                                        "value": {
+                                            "value": "@item().TableName",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "PrimaryKey": {
+                                        "value": {
+                                            "value": "@item().PrimaryKey",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "Partition": {
+                                        "value": {
+                                            "value": "@item().Partition",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "UpdatedDate": {
+                                        "value": {
+                                            "value": "@item().UpdatedDate",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "FlagDelete": {
+                                        "value": {
+                                            "value": "@item().FlagDelete",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "PartitionColumn": {
+                                        "value": {
+                                            "value": "@item().PartitionColumn",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    },
+                                    "linkedService": {
+                                        "value": {
+                                            "value": "@activity('Get Database Parameters').output.firstRow.linkedServiceADLS",
+                                            "type": "Expression"
+                                        },
+                                        "type": "string"
+                                    }
+                                },
+                                "snapshot": true,
+                                "sparkPool": {
+                                    "referenceName": "PAS01",
+                                    "type": "BigDataPoolReference"
+                                },
+                                "conf": {
+                                    "spark.dynamicAllocation.enabled": null,
+                                    "spark.dynamicAllocation.minExecutors": null,
+                                    "spark.dynamicAllocation.maxExecutors": null
+                                },
+                                "numExecutors": null
+                            }
+                        },
+                        {
+                            "name": "Get Database Parameters",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "7.00:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "AzureTableSource",
+                                    "azureTableSourceQuery": {
+                                        "value": "@concat('highway eq ''', item().highway, '''')",
+                                        "type": "Expression"
+                                    },
+                                    "azureTableSourceIgnoreTableNotFound": false
+                                },
+                                "dataset": {
+                                    "referenceName": "DS_AzureTable_Generic",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "TableName": "LoadingControlDatabases"
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            },
+            {
+                "name": "End Pipeline",
+                "type": "Wait",
+                "dependsOn": [
+                    {
+                        "activity": "For Each Tables Merge",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "waitTimeInSeconds": 1
+                }
+            }
+        ],
+        "variables": {
+            "currentdate": {
+                "type": "String"
+            },
+            "timestamp": {
+                "type": "String"
+            }
+        },
+        "folder": {
+            "name": "Orquestrador-ccr/2 - TrustedZone/Rodovias/Tor"
+        },
+        "annotations": [],
+        "lastPublishTime": "2022-09-01T20:20:13Z"
+    },
+    "type": "Microsoft.Synapse/workspaces/pipelines"
+}
