@@ -7,5 +7,5 @@ Azure Synapse Analytics Implementations
   * Classes and methods to write and read data lake files and database tables
 * **Trusted.py**
   * Dynamically handles .parquet files, transforms them into delta tables and backs up source files to a processed directory
-* **PL_SourceTORawZone_Full_rodovias.json**
+* **PL_SourceTORawZone_Full_tables.json**
   * Dynamic pipeline to ingest full tables with no delta
