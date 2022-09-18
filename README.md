@@ -9,3 +9,5 @@ Azure Synapse Analytics Implementations
   * Dynamically handles .parquet files, transforms them into delta tables and backs up source files to a processed directory
 * **PL_SourceTORawZone_Full_tables.json**
   * Dynamic pipeline to ingest full tables with no delta
+* **PL_RawZoneTOTrustedZone.json**
+  * Dynamic pipeline to handle parquet files and create delta tables. It uses the Trusted.py notebook.
