@@ -13,3 +13,5 @@ Azure Synapse Analytics Implementations
   * Dynamic pipeline to ingest full tables with no delta
 * **PL_RawZoneTOTrustedZone.json**
   * Dynamic pipeline to handle parquet files and create delta tables. It uses the Trusted.py notebook.
+* **PL_RefinedZonetoDW.json**
+  * Dynamic pipeline to save tables from refined zone into SQL Pool.
